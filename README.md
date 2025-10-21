@@ -1,13 +1,15 @@
 # project_fda_mobile_app
 
-A minimal Flutter app using Firebase Authentication and Realtime Database to send real-time GPS coordinates under `locations/{uid}/{timestamp}`.
+A Flutter app with Firebase Authentication and Realtime Database to send real-time GPS coordinates under `locations/{uid}/{timestamp}`. **Now supports background location tracking!**
 
 ## Features
 - Email/Password login (Firebase Auth)
-- Start/Stop buttons to control live GPS streaming
-- Writes to Realtime Database at `locations/{uid}/{timestamp}` → `{ latitude, longitude, readableTimestamp }`
+- **Foreground location tracking** - Real-time GPS streaming while app is open
+- **Background location tracking** - Continues sharing location every 30 seconds even when app is closed
+- Writes to Realtime Database at `locations/{uid}/{timestamp}` → `{ latitude, longitude, readableTimestamp, source }`
 - Splash screen auto-routes based on auth
 - Logout from Home screen
+- Persistent notification during background tracking
 
 ## Setup
 
@@ -26,7 +28,7 @@ flutter pub get
 
 Database path example:
 ```
-locations/{uid}/{timestamp}: { latitude, longitude, readableTimestamp }
+locations/{uid}/{timestamp}: { latitude, longitude, readableTimestamp, source }
 ```
 
 ### 3) Android Setup
@@ -49,6 +51,10 @@ apply plugin: 'com.google.gms.google-services'
 <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+<uses-permission android:name="android.permission.WAKE_LOCK" />
+<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 ```
 
 And inside `<application>` ensure internet:
@@ -56,7 +62,7 @@ And inside `<application>` ensure internet:
 <uses-permission android:name="android.permission.INTERNET" />
 ```
 
-> Note: For Android 10+ background location requires additional permission and compliance. This sample tracks while app is foreground using a stream. Do not add background location permissions unless necessary for your use case.
+> Note: For Android 10+ background location requires additional permission and compliance. This app handles background location with proper permissions and notifications.
 
 ### 4) Run
 ```bash
@@ -68,12 +74,44 @@ flutter run
 - Ensure the Android `applicationId` matches the package name used to register the app in Firebase.
 
 ## Code Structure
-- `lib/main.dart`: Firebase init, routes
+- `lib/main.dart`: Firebase init, routes, background service init
 - `lib/pages/splash_page.dart`: Splash routing based on `authStateChanges()`
 - `lib/pages/login_page.dart`: Email/password login & register
-- `lib/pages/home_page.dart`: Start/Stop sending GPS; Logout
+- `lib/pages/home_page.dart`: Start/Stop foreground/background GPS; Logout
+- `lib/services/background_location_service.dart`: Background service for location tracking
+
+## Background Location Tracking
+
+### How it works:
+1. **Start Background** button starts a background service
+2. Service runs independently of the app
+3. Sends location updates every 30 seconds to Firebase
+4. Shows persistent notification while tracking
+5. Continues even when app is closed or phone is locked
+
+### Database Structure:
+```json
+{
+  "locations": {
+    "driverId": {
+      "timestamp": {
+        "latitude": 40.7128,
+        "longitude": -74.0060,
+        "readableTimestamp": "2024-01-01T12:00:00.000Z",
+        "source": "background_service" // or "foreground"
+      }
+    }
+  }
+}
+```
+
+### Battery Optimization:
+- Users may need to disable battery optimization for the app
+- Android will show a notification during background tracking
+- Service automatically handles location permission requests
 
 ## Notes
 - Geolocator handles permission prompts; we also check and provide status feedback in UI.
 - Timestamps are stored as the node key (milliseconds since epoch) and a human-readable ISO string (`readableTimestamp`).
-- If you need background updates, consider a background service or WorkManager; this sample focuses on foreground live tracking.
+- Background tracking uses `flutter_background_service` for reliable location sharing.
+- Source field indicates whether location came from foreground or background service.

@@ -20,6 +20,10 @@ dependencies:
   # Location
   geolocator: ^13.0.1
 
+  # Background Services
+  flutter_background_service: ^5.0.5
+  workmanager: ^0.5.2
+
   # UI
   cupertino_icons: ^1.0.8
 
